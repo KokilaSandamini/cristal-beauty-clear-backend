@@ -11,7 +11,7 @@ const productSchema = new mongoose.Schema({
         required:true
     },
     altNames:{
-        trpe:[String],
+        type:[String],
         default:[]
     },
     price:{

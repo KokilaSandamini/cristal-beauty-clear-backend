@@ -35,7 +35,7 @@ const orderSchema = new mongoose.Schema({
     billItems:{
         type:[
             {
-            productId : String,
+            productID : String,
             productName : String,
             image : String,
             quantity : Number,
