@@ -12,15 +12,17 @@ dotenv.config()
 const app = express();
 app.use(cors())
 
-mongoose.connect(process.env.MONGO_URL).then(
+mongoose
+    .connect(process.env.MONGO_URL)
+    .then(
     ()=>{
         console.log("Connected to the database");
     }
 ).catch(
     ()=>{ 
-        console.log("Connectin failed");
+        console.log("Connection failed");
     }
-)
+);
 
 app.use(bodyParser.json());
 app.use(verifyJWT)
