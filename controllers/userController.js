@@ -3,7 +3,20 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
 import axios from "axios";
+import nodemailer from "nodemailer";
+import { OTP } from "../models/otp.js";
 dotenv.config()
+
+const transport = nodemailer.createTransport({
+	service : "gmail",
+	host : "smtp.gmail.com",
+	port : 587,
+	secure : false,
+	auth : {
+		user : "sandaminikokila26@gmail.com",
+		pass: 
+	}, 
+})
 export function saveUser(req, res) {
 
 	if(req.body.role == "admin"){
@@ -42,11 +55,11 @@ export function saveUser(req, res) {
 			});
 		})
 		.catch((err) => {
-			console.log(err);
-			res.status(500).json({
-				message: "User not saved",
-			});
-		});
+	console.error("User save error:", err); // <-- show detailed error
+	res.status(500).json({
+		message: "User not saved",
+	});
+});
 }
 export function loginUser(req, res) {
 	const email = req.body.email;
@@ -72,7 +85,7 @@ export function loginUser(req, res) {
 					email: user.email,
 					firstName: user.firstName,
 					lastName: user.lastName,
-					role: user.Role,
+					role: user.role,
 					phone: user.phone,
 					isDisabled: user.isDisabled,
 					isEmailVerified: user.isEmailVerified
@@ -110,7 +123,7 @@ export async function googleLogin(req,res){
 	try{
 		const response = await axios.get("https://www.googleapis.com/oauth2/v3/userinfo",{
 			headers : {
-				Authorization : "Bearer "+accessToken
+				Authorization : "Bearer " + accessToken
 			}
 		})
 		
@@ -153,7 +166,7 @@ export async function googleLogin(req,res){
 				email: user.email,
 				firstName: user.firstName,
 				lastName: user.lastName,
-				role: user.Role,
+				role: user.role,
 				phone: user.phone,
 				isDisabled: user.isDisabled,
 				isEmailVerified: user.isEmailVerified
@@ -175,4 +188,86 @@ export async function googleLogin(req,res){
 		})
 	}
 
+}
+export function getCurrentUser(req,res){
+	if(req.user == null){
+		res.status(403).json({
+			message: "Please login to get user details",
+		});
+		return;
+	}
+	res.json({
+		user : req.user
+	})
+} 
+export async function sendOTP(req,res){
+	const email =req.body.email;
+	const otp= Math.floor(Math.random()*9000) + 1000;
+
+	const message = {
+		from : "sandaminikokila26@gmail.com",
+		to : email,
+		subject : "OTP for email verification",
+		text : "Your OTP is : "+otp
+	}
+
+	const newotp = new OTP({
+		email : email,
+		otp : otp
+	})
+
+	newotp.save().then(()=>{
+		console.log("OTP saved successfully")
+	})
+
+	transport.sendMail(message,(err,info)=>{
+		if(err){
+			console.log(err);
+			res.status(500).json({
+				message : "Error sending email"
+			})
+		}else{
+			res.json({
+				message : "OTP sent successfully",
+				otp : otp
+			})
+		}
+	})
+}
+
+export async function changePassword(req, res) {
+    const email = req.body.email;
+    const password = req.body.password;
+    const otp = req.body.otp;
+
+    try {
+        // Get latest OTP from DB
+        const lastOTPData = await OTP.findOne({ email: email }).sort({ createdAt: -1 });
+
+        if (!lastOTPData) {
+            return res.status(404).json({ message: "No OTP found for this email" });
+        }
+
+        if (lastOTPData.otp != otp) {
+            return res.status(403).json({ message: "Invalid OTP" });
+        }
+
+        // Hash the new password
+        const hashedPassword = bcrypt.hashSync(password, 10);
+
+        // Update password in User collection
+        await User.findOneAndUpdate(
+            { email: email },
+            { password: hashedPassword }
+        );
+
+        // Delete all OTPs for this user (optional but recommended)
+        await OTP.deleteMany({ email: email });
+
+        return res.json({ message: "Password changed successfully" });
+
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ message: "Error changing password" });
+    }
 }
